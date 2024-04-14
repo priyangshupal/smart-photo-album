@@ -6,14 +6,18 @@ import base64
 def lambda_handler(event, context):
     client = boto3.client('lex-runtime')
     user = "temp1"
-
+    print(event)
+    query = ''
     try:
-        query = event['queryStringParameters']['q']
+      if 'queryStringParameters' in event.keys():
+        if 'q' in event['queryStringParameters'].keys():
+            query = event['queryStringParameters']['q']
+      elif 'params' in event.keys():
+        if 'querystring' in event['params'].keys():
+            query = event['params']['querystring']['q']
     except:
-        query = "Give me photos of dogs"
-    test = {'test': query}
-    
-    botMessage = "Please try again.";
+      query = "Give me photos of dogs"
+    print('query', query)
     if query is None or len(query) < 1:
       return {
         'statusCode': 200,
@@ -22,7 +26,7 @@ def lambda_handler(event, context):
         "Access-Control-Allow-Origin": "*", 
         "Access-Control-Allow-Methods": "*" 
         },
-        'body': json.dumps(botMessage)
+        'body': json.dumps("Please try again.")
       }
     
     print("Reaching Here!")
@@ -32,14 +36,23 @@ def lambda_handler(event, context):
                                 userId=user,
                                 inputText=query)
     print("Reaching Here2!")
-    print(response['slots']['X'])
     
-    
+    first_term = None
+    second_term = None
+    if 'slots' in response.keys():
+      if 'X' in response['slots']:
+          first_term = response['slots']['X']
+      if 'Y' in response['slots']:
+          second_term = response['slots']['Y']
+    print(first_term, second_term)
     esDomain = "https://search-photos-ptdne3we6zyvg2gi2p6khaf5lq.aos.us-east-1.on.aws/"
     es_client = Elasticsearch(esDomain)
     lex_labels = []
+    if (first_term is not None):
+      lex_labels.append(first_term)
+    if (second_term is not None):
+      lex_labels.append(second_term)
     labels = []
-    lex_labels.append(response['slots']['X'])
     for label in lex_labels:
       labels.append({"match":{"labels":label}})
     query = {"query": {"bool":{"must": labels}}}
