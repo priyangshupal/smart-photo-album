@@ -1,14 +1,8 @@
 version: 0.2
-
 phases:
   install:
     runtime-versions:
       python: 3.11
-
-  pre_build:
-    commands:
-      - echo "Add any pre-build tasks here like pip install req"
-
   build:
     commands:
       - cd search-photos
@@ -18,9 +12,7 @@ phases:
       - cd ../index-photos
       - zip -r ../index-photos.zip *
       - aws s3 cp ../index-photos.zip s3://ccasst3-lcp
-
   post_build:
     commands:
-      - echo "Starting update-function-code"
       - aws lambda update-function-code --function-name search-photos-es --s3-bucket ccasst3-lcp --s3-key search-photos.zip
       - aws lambda update-function-code --function-name index-photos --s3-bucket ccasst3-lcp --s3-key index-photos.zip

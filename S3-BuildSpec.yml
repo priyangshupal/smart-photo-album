@@ -1,11 +1,5 @@
 version: 0.2
-
 phases:
-  build:
-    commands:
-      - echo "frontend-buildspec has been called"
-
   post_build:
     commands:
-      - echo "Pushing to S3"
       - aws s3 sync CC_Asst3 s3://cc-asst3
