@@ -22,5 +22,5 @@ phases:
   post_build:
     commands:
       - echo "Starting update-function-code"
-      - aws lambda update-function-code --function-name search-photos --s3-bucket ccasst3-lcp --s3-key search-photos.zip
+      - aws lambda update-function-code --function-name search-photos-es --s3-bucket ccasst3-lcp --s3-key search-photos.zip
       - aws lambda update-function-code --function-name index-photos --s3-bucket ccasst3-lcp --s3-key index-photos.zip
