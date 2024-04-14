@@ -1,4 +1,5 @@
 import boto3
+import base64
 import json
 from datetime import datetime
 from requests.auth import HTTPBasicAuth
@@ -12,22 +13,28 @@ def lambda_handler(event, context):
 
     s3_client = boto3.client("s3")
     s3_response = s3_client.head_object(Bucket=bucketname, Key=filename)
-    print("s3_response", s3_response)
-
+    user_metadata = s3_response['Metadata']['customlabels'].replace('\'', '').split(',')
+    print('user_metadata', user_metadata)
+    
+    image_object = s3_client.get_object(Bucket=bucketname, Key=filename)
+    print('image_object', image_object)
+    base64_image = image_object["Body"].read().decode('utf-8')
+    
     rekognition_client = boto3.client("rekognition")
+    decoded_image=base64.b64decode(base64_image)
     rekognition_response = rekognition_client.detect_labels(
-        Image={"S3Object": {"Bucket": bucketname, "Name": filename}},
+        Image={'Bytes':decoded_image},
         MaxLabels=3,
         MinConfidence=80,
     )
 
     print("Rekognition response: ", rekognition_response)
-    labels = []
+    labels = user_metadata
     for label in rekognition_response["Labels"]:
-        labels.append(label['Name'])
+        labels.append(label['Name'].lower())
     print('labels', labels)
     
-    esDomain = "https://search-photos-ptdne3we6zyvg2gi2p6khaf5lq.aos.us-east-1.on.aws"
+    esUrl = "https://search-photos-ptdne3we6zyvg2gi2p6khaf5lq.aos.us-east-1.on.aws/photos/_doc"
     headers = {"Content-Type": "application/json"}
     esDoc = {
         'objectKey': filename,
@@ -36,11 +43,12 @@ def lambda_handler(event, context):
         'labels': labels
     }
     print(esDoc)
-    # response = requests.post(
-    #     url, 
-    #     data=json.dumps(body).encode("utf-8"), 
-    #     headers=headers, 
-    #     auth=HTTPBasicAuth('pp2833', 'ElasticSearch@123')
-    # )
+    response = requests.post(
+        esUrl,
+        data=json.dumps(esDoc).encode("utf-8"),
+        headers=headers,
+        auth=HTTPBasicAuth('', '')
+    )
+    print("ESIndex response", response.json())
     
-    return {"statusCode": 200, "body": json.dumps("Hello from Lambda!")}
+    return {"statusCode": 200, "body": json.dumps("Indexed ElasticSearch")}
