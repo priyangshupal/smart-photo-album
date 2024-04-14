@@ -49,7 +49,7 @@ def lambda_handler(event, context):
       response = es_client.search(
         index='photos', 
         body=query,
-        headers={'Authorization': ''}
+        headers={'Authorization': 'Basic cHAyODMzOkVsYXN0aWNAMTIz'}
       )
       photos = response['hits']['hits']
       if len(photos) > 0:

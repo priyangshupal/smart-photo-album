@@ -22,17 +22,25 @@
 </head>
 
 <body>
-    <h1>Image Uploader and Text Search</h1>
-    
-    <input type="file" id="imageInput">
+    <h2>Image Uploader </h2>
+    <label for="Upload Image">
+        Select File to Upload:
+    </label>
+    <input type="file" id="imageInput" name="imageInput">
+    </br>
+    </br>
+    <label for="CustomLabels">
+        Enter your Custom Labels:
+    </label>
+    <input type="text" id="CustomLabels" name="CustomLabels">
+    </br>
+    </br>
     <button onclick="uploadImage()">Upload Image</button>
-    
-    <h2>Search Text</h2>
-    <input type="text" id="searchText">z
+    <hr>
+    <h2>Search For Images</h2>
+    <input type="text" id="searchText">
     <button onclick="searchText()">Search</button>
 
     <div id="searchResult"></div>
-
-
 </body>
 </html>

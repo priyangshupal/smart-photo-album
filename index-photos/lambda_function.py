@@ -47,7 +47,7 @@ def lambda_handler(event, context):
         esUrl,
         data=json.dumps(esDoc).encode("utf-8"),
         headers=headers,
-        auth=HTTPBasicAuth('', '')
+        auth=HTTPBasicAuth('pp2833', 'Elastic@123')
     )
     print("ESIndex response", response.json())
     

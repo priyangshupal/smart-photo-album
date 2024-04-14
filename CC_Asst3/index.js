@@ -1,11 +1,6 @@
-const GET_API_ENDPOINT =
-  "https://qe87xqnva5.execute-api.us-east-1.amazonaws.com/DEV";
-const UPLOAD_API_ENDPOINT =
-  "https://qe87xqnva5.execute-api.us-east-1.amazonaws.com/DEV/upload/cloudasst3-b2/";
-
+// Handles Upload of Images to S3 via API Gateway
+// Converting to Base64 since direct upload was resulting in 0B images on S3
 function uploadImage() {
-  console.log("Here!");
-  var apigClient = apigClientFactory.newClient();
   const fileInput = document.getElementById("imageInput");
   const file = fileInput.files[0];
   const fileName = file.name;
@@ -18,34 +13,30 @@ function uploadImage() {
   const formData = new FormData();
   formData.append("image", file);
 
-  console.log(fileName);
-  console.log(fileType);
-
   getBase64(file).then((data) => {
     var apigClient = apigClientFactory.newClient();
-    var fileType = file.type + ";base64";
-    console.log(fileType);
     var body = data;
-    var customLabels = "Dogs";
+    var customLabels = document.getElementById("CustomLabels").value;
+    console.log(customLabels);
     var params = {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "*",
-      "Access-Control-Allow-Methods": "*",
-      filename: Date.now().toString() + fileName,
+      // Change key to Filename
+      filename: fileName + "_" + Date.now().toString(),
+      // Change Bucket Name
       bucket: "cloudasst3-b2",
       "x-amz-meta-customLabels": customLabels,
     };
-    console.log(params);
+
+    // Change Function Call
     apigClient
       .uploadBucketFilenamePut(params, body, {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers": "*",
         "Access-Control-Allow-Methods": "*",
-        "x-amz-meta-customLabels": customLabels,
       })
       .then(function (res) {
         if (res.status == 200) {
           console.log("Uploaded successfully");
+          alert("The Image was Uplaoded to S3!");
           console.log(res);
         }
       })
@@ -56,6 +47,7 @@ function uploadImage() {
   });
 }
 
+// Converts Image to Base64 encoded string
 function getBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -71,31 +63,33 @@ function getBase64(file) {
   });
 }
 
+// Search Function to retrieve images
 function searchText() {
   var searchTerm = document.getElementById("searchText").value;
   console.log(searchTerm);
   var apigClient = apigClientFactory.newClient();
   var params = {
-    "Access-Control-Allow-Origin": "*",
     q: searchTerm,
   };
+  var body = {};
+  var additionalParams = {
+    "Access-Control-Allow-Origin": "*",
+    "Content-Type": "application/json",
+  };
   apigClient
-    .searchGet(
-      params,
-      {},
-      { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json" }
-    )
+    .searchGet(params, body, additionalParams)
     .then(function (res) {
       console.log("success");
       console.log(res.data.images);
       showImages(res.data.images);
     })
-    .catch(function (result) {
-      console.log(result);
-      console.log("NO RESULT");
+    .catch(function (err) {
+      console.log("Search Failed");
+      console.log(err);
     });
 }
 
+// Decode Base64 Images and display to User
 function showImages(images) {
   const searchResultDiv = document.getElementById("searchResult");
   searchResultDiv.innerHTML = "";
@@ -104,8 +98,8 @@ function showImages(images) {
     searchResultDiv.innerHTML = "No images found.";
   } else {
     images.forEach((imageb64) => {
-      console.log("Reaching Here"); // Accessing each element of the array
       const img = document.createElement("img");
+      // Convert From Base 64 to Image Format Again
       img.src = `data:image/jpeg;base64,${imageb64}`;
       img.style.width = "200px";
       img.style.margin = "5px";
