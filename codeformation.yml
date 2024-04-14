@@ -1,0 +1,196 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+  LambdaFuncName:
+    Type: String
+    Default: LF3_2-cloudformation
+  EnvironmentName:
+    Type: String
+    Default: Prod
+  APIName:
+    Type: String
+    Default: AI Photo Search - Cloudformation
+Resources:
+  cloudasst3storagebucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: cloudasst3storagebucket
+  cloudasst3frontendbucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: cloudasst3frontendbucket
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+      Path: /
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: "s3:*"
+                Resource: "*"
+  IndexPhotos:
+    Type: AWS::Lambda::Function
+    Properties:
+      Role: arn:aws:iam::730335366282:role/service-role/index-photos-role-lqk5ocoz
+      Runtime: python3.11
+      Handler: index.lambda_handler
+      FunctionName: index-photos-cloudformation
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+          from datetime import datetime
+          from requests.auth import HTTPBasicAuth
+          from botocore.vendored import requests
+
+          def lambda_handler(event, context):
+              print("event", event)
+
+              bucketname = event["Records"][0]["s3"]["bucket"]["name"]
+              filename = event["Records"][0]["s3"]["object"]["key"]
+
+              s3_client = boto3.client("s3")
+              s3_response = s3_client.head_object(Bucket=bucketname, Key=filename)
+              print("s3_response", s3_response)
+
+              rekognition_client = boto3.client("rekognition")
+              rekognition_response = rekognition_client.detect_labels(
+                  Image={"S3Object": {"Bucket": bucketname, "Name": filename}},
+                  MaxLabels=3,
+                  MinConfidence=80,
+              )
+
+              print("Rekognition response: ", rekognition_response)
+              labels = []
+              for label in rekognition_response["Labels"]:
+                  labels.append(label['Name'])
+              print('labels', labels)
+              
+              esDomain = "https://search-photos-ptdne3we6zyvg2gi2p6khaf5lq.aos.us-east-1.on.aws"
+              headers = {"Content-Type": "application/json"}
+              esDoc = {
+                  'objectKey': filename,
+                  'bucket': bucketname,
+                  'createdTimestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                  'labels': labels
+              }
+              print(esDoc)
+              # response = requests.post(
+              #     url, 
+              #     data=json.dumps(body).encode("utf-8"), 
+              #     headers=headers, 
+              #     auth=HTTPBasicAuth('pp2833', 'ElasticSearch@123')
+              # )
+              
+              return {"statusCode": 200, "body": json.dumps("Hello from Lambda!")}
+  LF32:
+    Type: AWS::Lambda::Function
+    Properties:
+      Role: arn:aws:iam::730335366282:role/service-role/index-photos-role-lqk5ocoz
+      Handler: index.handler
+      Runtime: python3.12
+      Code:
+        ZipFile: |
+          def lambda_handler(event, context):
+            return Cloud formation test lambda for API Gateway"
+  APIGatewayRestAPI:
+    Type: "AWS::ApiGateway::RestApi"
+    Properties:
+      Name:
+        Ref: APIName
+    DependsOn:
+      - LF32
+  APIGatewayResource:
+    Type: "AWS::ApiGateway::Resource"
+    Properties:
+      RestApiId: !Ref APIGatewayRestAPI
+      ParentId: !GetAtt
+        - APIGatewayRestAPI
+        - RootResourceId
+      PathPart:
+        Ref: LambdaFuncName
+    DependsOn:
+      - APIGatewayRestAPI
+  APIGatewayMethod:
+    Type: "AWS::ApiGateway::Method"
+    Properties:
+      RestApiId: !Ref APIGatewayRestAPI
+      ResourceId: !Ref APIGatewayResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      MethodResponses:
+        - StatusCode: 200
+      Integration:
+        Type: AWS
+        IntegrationResponses:
+          - StatusCode: 200
+        IntegrationHttpMethod: POST
+        Uri: !Sub
+          - >-
+            arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFuncNameArn}/invocations
+          - LambdaFuncNameArn: !GetAtt LF32.Arn
+    DependsOn:
+      - APIGatewayResource
+  APIGatewayDeployment:
+    Type: "AWS::ApiGateway::Deployment"
+    Properties:
+      RestApiId: !Ref APIGatewayRestAPI
+      StageName:
+        Ref: EnvironmentName
+    DependsOn:
+      - APIGatewayMethod
+  APIGatewayPermission:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      Action: "lambda:InvokeFunction"
+      FunctionName: !GetAtt LF32.Arn
+      Principal: apigateway.amazonaws.com
+    DependsOn:
+      - APIGatewayDeployment
+  IndexPhotosSearchDomainCF:
+    Type: "AWS::Elasticsearch::Domain"
+    Properties:
+      ElasticsearchVersion: 7.9
+      DomainName: test-domain
+      ElasticsearchClusterConfig:
+        InstanceType: t3.small.elasticsearch
+        InstanceCount: 1
+        ZoneAwarenessEnabled: false
+        DedicatedMasterEnabled: false
+      EBSOptions:
+        EBSEnabled: true
+        VolumeSize: 10
+        VolumeType: gp2
+      DomainEndpointOptions:
+        EnforceHTTPS: true
+      NodeToNodeEncryptionOptions:
+        Enabled: true
+      EncryptionAtRestOptions:
+        Enabled: true
+      AdvancedSecurityOptions:
+        Enabled: true
+        InternalUserDatabaseEnabled: true
+        MasterUserOptions:
+          MasterUserName: pp2833
+          MasterUserPassword: Elastic@123
+Outputs:
+  DomainEndpoint:
+    Description: Endpoint for the Elasticsearch domain
+    Value:
+      "Fn::GetAtt":
+        - IndexPhotosSearchDomainCF
+        - DomainEndpoint
+  PublicBucketURL:
+    Description: Public URL of the S3 bucket
+    Value: !GetAtt cloudasst3frontendbucket.WebsiteURL
